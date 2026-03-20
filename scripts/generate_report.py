@@ -119,47 +119,81 @@ def research_topic(topic_content: str) -> str:
     return _gemini_with_search(prompt)
 
 
-def validate_links(text: str) -> str:
-    """Check every URL in text and remove any that do not return a successful response."""
-    url_pattern = re.compile(r'https?://[^\s\)\]\"\']+')
-    urls = set(url_pattern.findall(text))
+HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AutoReport link-checker)"}
+
+
+def _check_url(url: str) -> bool:
+    """Return True if the URL resolves successfully."""
+    url = url.rstrip(".,;:")
+    try:
+        resp = requests.head(url, headers=HTTP_HEADERS, timeout=10, allow_redirects=True)
+        if resp.status_code >= 400:
+            resp = requests.get(url, headers=HTTP_HEADERS, timeout=10, stream=True)
+        return resp.status_code < 400
+    except Exception:
+        return False
+
+
+def _extract_urls(text: str) -> set[str]:
+    return {u.rstrip(".,;:") for u in re.findall(r'https?://[^\s\)\]\"\']+', text)}
+
+
+def fix_and_validate_links(text: str) -> str:
+    """Validate every URL in the report. For dead links, ask Gemini to find a working
+    replacement via search. If no replacement is found, rewrite the surrounding text to
+    remove unverifiable claims. Finally convert all links to open in new tabs."""
+
+    urls = _extract_urls(text)
     if not urls:
-        return text
+        return linkify_new_tabs(text)
 
     dead = set()
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; AutoReport link-checker)"}
     for url in urls:
-        # Strip trailing punctuation that may have been captured
-        url_clean = url.rstrip(".,;:")
-        try:
-            resp = requests.head(url_clean, headers=headers, timeout=10, allow_redirects=True)
-            if resp.status_code >= 400:
-                # Fall back to GET — some servers reject HEAD
-                resp = requests.get(url_clean, headers=headers, timeout=10, stream=True)
-            if resp.status_code >= 400:
-                dead.add(url_clean)
-                print(f"  [invalid link removed] {url_clean} → HTTP {resp.status_code}")
-        except Exception as exc:
-            dead.add(url_clean)
-            print(f"  [invalid link removed] {url_clean} → {exc}")
+        if _check_url(url):
+            print(f"  [ok] {url}")
+        else:
+            dead.add(url)
+            print(f"  [dead] {url}")
 
-    if not dead:
-        return text
+    if dead:
+        print(f"  Asking Gemini to replace or rewrite {len(dead)} dead link(s)...")
+        dead_list = "\n".join(f"- {u}" for u in sorted(dead))
+        prompt = (
+            "You are editing a research report. Some URLs in the report are broken and must be fixed.\n\n"
+            "For each dead URL below, either:\n"
+            "  (a) Find a real, working replacement URL via search that supports the same claim, "
+            "and substitute it in the report, OR\n"
+            "  (b) If no valid source can be found, rewrite the sentence or bullet point that "
+            "referenced that URL so it no longer makes that specific unverifiable claim.\n\n"
+            "Return the complete corrected report text and nothing else. "
+            "Do not add any preamble or explanation outside the report.\n\n"
+            f"Dead URLs:\n{dead_list}\n\n"
+            f"Report:\n{text}"
+        )
+        text = _gemini_with_search(prompt)
 
-    # Remove markdown links whose URL is dead: [text](dead_url)
-    def remove_md_link(m):
-        url = m.group(2).rstrip(".,;:")
-        if url in dead:
-            return m.group(1)  # keep the link text, drop the URL
-        return m.group(0)
+        # Verify the replacements Gemini introduced are also real
+        new_urls = _extract_urls(text) - (urls - dead)
+        still_dead = {u for u in new_urls if not _check_url(u)}
+        for url in still_dead:
+            print(f"  [replacement also dead, stripping] {url}")
+            text = re.sub(
+                r'\[([^\]]+)\]\(' + re.escape(url) + r'\)',
+                r'\1',
+                text,
+            )
+            text = text.replace(url, "")
 
-    text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', remove_md_link, text)
+    return linkify_new_tabs(text)
 
-    # Remove bare dead URLs that remain
-    for url in dead:
-        text = text.replace(url, "")
 
-    return text
+def linkify_new_tabs(text: str) -> str:
+    """Convert markdown links to HTML anchors that open in a new tab."""
+    return re.sub(
+        r'\[([^\]]+)\]\((https?://[^\)]+)\)',
+        r'<a href="\2" target="_blank">\1</a>',
+        text,
+    )
 
 
 def summarize_changes(display_name: str, previous_report: str | None, new_report: str) -> str:
@@ -255,8 +289,8 @@ def main() -> None:
             print("  Researching and synthesizing report...")
             report_body = research_topic(topic_content)
 
-            print("  Validating links...")
-            report_body = validate_links(report_body)
+            print("  Validating and fixing links...")
+            report_body = fix_and_validate_links(report_body)
 
             with open(report_path, "w", encoding="utf-8") as f:
                 f.write(f"# Research Report: {display_name}\n")
