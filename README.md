@@ -101,18 +101,18 @@ You can trigger a run at any time from the **Actions** tab in your repository. C
 ## Recent Activity
 
 <!-- REPORT_LOG_START -->
-### Run: 2026-03-18
+### Run: 2026-03-20
 
 **2/2 reports generated successfully.**
 
 
-#### Ai Topic — [AI_topic.md](topics/AI_topic.md) | [AI_topic_2026-03-18.md](reports/AI_topic_2026-03-18.md)
+#### Ai Topic — [AI_topic.md](topics/AI_topic.md) | [AI_topic_2026-03-20.md](reports/AI_topic_2026-03-20.md)
 
-The latest AI report highlights a significant acceleration in model releases and capabilities, with OpenAI's GPT-5.4 now featuring a 1-million-token context window and autonomous multi-step workflow execution. Google DeepMind has also released its flagship Gemini 3.0 model, claiming top benchmark performance, while Anthropic is increasingly involved in ethical disputes regarding military AI applications.
+This week's AI report highlights Google DeepMind's introduction of a cognitive framework for tracking AGI progress and Meta's significant investment in AI infrastructure alongside employee layoffs. A critical new development is the emergence of LiveBench, a dynamic benchmark designed to combat test set contamination and ensure more objective LLM evaluations, alongside ongoing concerns about AI misuse with minors and its implications in legal proceedings.
 
 
-#### Liver-Kidney-Data — [Liver-Kidney-data.md](topics/Liver-Kidney-data.md) | [Liver-Kidney-data_2026-03-18.md](reports/Liver-Kidney-data_2026-03-18.md)
+#### Liver-Kidney-Data — [Liver-Kidney-data.md](topics/Liver-Kidney-data.md) | [Liver-Kidney-data_2026-03-20.md](reports/Liver-Kidney-data_2026-03-20.md)
 
-The new report highlights the expanded availability of specific kidney and liver cancer datasets like KiTS19/23 and ATLAS, emphasizing multi-center, multi-phase imaging. It also notes the ongoing growth of the NCI Imaging Data Commons (IDC) with over 85 TB of data and a strong focus on open, commercially friendly licenses.
+The new report highlights the addition of the HCC-TACE-SEG dataset from TCIA, which offers semi-automatic segmentations for liver, tumors, and blood vessels in HCC patients undergoing TACE. Additionally, the Duke Liver Dataset has significantly expanded its offering with 2146 abdominal MRI series and over 300 liver segmentations, making it a substantial resource for liver analysis.
 
 <!-- REPORT_LOG_END -->
