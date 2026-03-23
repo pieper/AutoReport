@@ -33,8 +33,9 @@ REPORTS_DIR = "reports"
 README_FILE = "README.md"
 
 MODEL = "gemini-2.5-flash-lite"
-MAX_RETRIES = 4
-RETRY_BUFFER_SECS = 5  # extra seconds added on top of the API-suggested delay
+RETRY_BUFFER_SECS = 5    # extra seconds added on top of the API-suggested delay
+RETRY_TIMEOUT_SECS = 3600  # give up after 1 hour
+RETRY_BACKOFF_BASE = 30  # starting backoff for non-429 transient errors (seconds)
 
 README_MARKER_START = "<!-- REPORT_LOG_START -->"
 README_MARKER_END = "<!-- REPORT_LOG_END -->"
@@ -45,46 +46,62 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 # --- Helpers ---
 
-def _parse_retry_delay(error: Exception) -> float:
-    """Extract the suggested retry delay in seconds from a 429 error message, if present."""
+def _is_transient(error: Exception) -> bool:
+    """Return True for errors that are worth retrying (rate limits, overload, network)."""
+    msg = str(error)
+    return any(code in msg for code in ("429", "500", "502", "503", "504"))
+
+
+def _retry_delay(error: Exception, backoff: float) -> float:
+    """Return how long to wait before the next attempt."""
     match = re.search(r"retryDelay.*?(\d+(?:\.\d+)?)s", str(error))
     if match:
-        return float(match.group(1))
-    return 60.0  # safe default
+        return float(match.group(1)) + RETRY_BUFFER_SECS
+    return backoff
 
 
 def _gemini(prompt: str) -> str:
-    """Call Gemini with retry logic for 429 rate-limit errors."""
-    for attempt in range(1, MAX_RETRIES + 1):
+    """Call Gemini without search, retrying transient errors for up to RETRY_TIMEOUT_SECS."""
+    deadline = time.monotonic() + RETRY_TIMEOUT_SECS
+    backoff = RETRY_BACKOFF_BASE
+    attempt = 0
+    while True:
+        attempt += 1
         try:
-            response = client.models.generate_content(model=MODEL, contents=prompt)
-            return response.text
+            return client.models.generate_content(model=MODEL, contents=prompt).text
         except Exception as e:
-            if "429" in str(e) and attempt < MAX_RETRIES:
-                delay = _parse_retry_delay(e) + RETRY_BUFFER_SECS
-                print(f"  Rate limited. Waiting {delay:.0f}s before retry {attempt}/{MAX_RETRIES - 1}...")
+            remaining = deadline - time.monotonic()
+            if _is_transient(e) and remaining > 0:
+                delay = min(_retry_delay(e, backoff), remaining)
+                print(f"  Transient error (attempt {attempt}): {e}. Retrying in {delay:.0f}s...")
                 time.sleep(delay)
+                backoff = min(backoff * 2, 300)
             else:
                 raise
 
 
 def _gemini_with_search(prompt: str) -> str:
-    """Call Gemini with Google Search grounding and retry logic."""
-    for attempt in range(1, MAX_RETRIES + 1):
+    """Call Gemini with Google Search grounding, retrying transient errors for up to RETRY_TIMEOUT_SECS."""
+    deadline = time.monotonic() + RETRY_TIMEOUT_SECS
+    backoff = RETRY_BACKOFF_BASE
+    attempt = 0
+    while True:
+        attempt += 1
         try:
-            response = client.models.generate_content(
+            return client.models.generate_content(
                 model=MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())]
                 ),
-            )
-            return response.text
+            ).text
         except Exception as e:
-            if "429" in str(e) and attempt < MAX_RETRIES:
-                delay = _parse_retry_delay(e) + RETRY_BUFFER_SECS
-                print(f"  Rate limited. Waiting {delay:.0f}s before retry {attempt}/{MAX_RETRIES - 1}...")
+            remaining = deadline - time.monotonic()
+            if _is_transient(e) and remaining > 0:
+                delay = min(_retry_delay(e, backoff), remaining)
+                print(f"  Transient error (attempt {attempt}): {e}. Retrying in {delay:.0f}s...")
                 time.sleep(delay)
+                backoff = min(backoff * 2, 300)
             else:
                 raise
 

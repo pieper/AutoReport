@@ -14,6 +14,8 @@ on:
 jobs:
   generate-reports:
     runs-on: ubuntu-latest
+    # Allow up to 70 minutes — the script retries for up to 1 hour internally
+    timeout-minutes: 70
 
     permissions:
       contents: write
@@ -46,3 +48,4 @@ jobs:
             git commit -m "Automated report update: $(date -u +'%Y-%m-%d')"
             git push
           fi
+
