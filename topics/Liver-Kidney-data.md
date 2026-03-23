@@ -23,3 +23,7 @@ Please organize the report with:
 3. Notable papers with a one-sentence description each
 4. A "What to Watch" section for upcoming releases or dates
 5. Possible clinical relevance
+
+## Reference
+
+When generating your report, consider this review paper to be the baseline defining the previous state of the art: https://link.springer.com/article/10.1007/s10462-025-11310-x
