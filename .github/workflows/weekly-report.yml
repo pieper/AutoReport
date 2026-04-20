@@ -46,6 +46,7 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Automated report update: $(date -u +'%Y-%m-%d')"
-            git push
+            git pull --rebase || echo "Rebase failed, proceeding with force push"
+            git push --force-with-lease
           fi
 
