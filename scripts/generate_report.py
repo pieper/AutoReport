@@ -166,6 +166,11 @@ def fix_and_validate_links(text: str) -> str:
 
     dead = set()
     for url in urls:
+        # Before any string operations on links, add a null check
+        if url is None or not isinstance(url, str):
+            print(f"Warning: Invalid link encountered, skipping: {url}")
+            continue
+        
         if _check_url(url):
             print(f"  [ok] {url}")
         else:
@@ -191,7 +196,15 @@ def fix_and_validate_links(text: str) -> str:
 
         # Verify the replacements Gemini introduced are also real
         new_urls = _extract_urls(text) - (urls - dead)
-        still_dead = {u for u in new_urls if not _check_url(u)}
+        still_dead = set()
+        for u in new_urls:
+            # Before any string operations on links, add a null check
+            if u is None or not isinstance(u, str):
+                print(f"Warning: Invalid link encountered in replacement, skipping: {u}")
+                continue
+            if not _check_url(u):
+                still_dead.add(u)
+        
         for url in still_dead:
             print(f"  [replacement also dead, stripping] {url}")
             text = re.sub(
