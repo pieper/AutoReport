@@ -46,7 +46,15 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Automated report update: $(date -u +'%Y-%m-%d')"
-            git pull --rebase || echo "Rebase failed, proceeding with force push"
-            git push --force-with-lease
+            # Check if remote has new commits before attempting rebase
+            git fetch origin main
+            if git diff --quiet HEAD origin/main; then
+              echo "No remote changes, pushing directly"
+              git push
+            else
+              echo "Remote has changes, rebasing and force pushing"
+              git pull --rebase origin main || echo "Rebase failed, proceeding with force push"
+              git push --force-with-lease
+            fi
           fi
 
